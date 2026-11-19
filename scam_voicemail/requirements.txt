@@ -1,0 +1,6 @@
+datasets>=3.0
+huggingface_hub
+# 03_generate_synthetic.py で使うものだけ入れればよい
+openai
+anthropic
+google-genai

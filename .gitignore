@@ -1,0 +1,9 @@
+__pycache__/
+*.pyc
+.venv/
+.env
+# 生成物 (03/04 を実行すると再生成される)
+scam_voicemail/data/processed/*.jsonl
+scam_voicemail/data/dataset.jsonl
+scam_voicemail/data/train.jsonl
+scam_voicemail/data/val.jsonl
