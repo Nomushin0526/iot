@@ -221,3 +221,13 @@ def test_env_example_parses_cleanly(monkeypatch):
     assert os.environ["WHISPER_MODEL"] == "small"
     assert env_bool("USE_HARDWARE") is True
     assert os.environ["NOTIFY_THRESHOLD"] == "7" and os.environ["PORT"] == "8000"
+
+
+def test_find_busy_pins_reports_pin_in_use():
+    hw.use_mock_pins()
+    from gpiozero import DigitalOutputDevice
+    d = DigitalOutputDevice(8)  # バーグラフ用 RCK を先に使用中にしておく
+    busy = hw.find_busy_pins()
+    assert any(b.startswith("GPIO8 ") and "SPI" in b for b in busy)
+    assert len(busy) == 1
+    d.close()

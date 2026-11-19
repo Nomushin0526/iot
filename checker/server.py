@@ -128,6 +128,14 @@ async def lifespan(app: FastAPI):
     except Exception as e:  # 配線・権限の問題があってもサーバー自体は動かす
         print(f"[hw] disabled: {type(e).__name__}: {e}")
         HW = None
+        if config.USE_HARDWARE:
+            from . import hardware as hw
+            busy = hw.find_busy_pins()
+            for b in busy:
+                print(f"[hw]   使用中: {b}")
+            if busy:
+                print("[hw]   hw_test.py や前回のサーバーが動いていないか確認してください "
+                      "(ps aux | grep python)")
     threading.Thread(target=_warm_up_whisper, daemon=True).start()
     yield
     if HW:

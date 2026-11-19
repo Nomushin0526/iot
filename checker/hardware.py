@@ -69,6 +69,28 @@ def risk_to_color(risk: int) -> str:
     return "green" if risk <= 3 else "yellow" if risk <= 6 else "red"
 
 
+ALL_PINS = {
+    **{f"7セグ用595 {k.upper()}": v for k, v in SEG_SR.items()},
+    **{f"バーグラフ用595 {k.upper()}": v for k, v in BAR_SR.items()},
+    **{f"RGB {k}": v for k, v in RGB_PINS.items()},
+    "通知ボタン": NOTIFY_BUTTON,
+    **{f"キーパッド行{i + 1}": p for i, p in enumerate(KEYPAD_ROWS)},
+    **{f"キーパッド列{i + 1}": p for i, p in enumerate(KEYPAD_COLS)},
+}
+
+
+def find_busy_pins() -> list[str]:
+    """どのピンが他のプログラム等に使われているか1本ずつ調べる (GPIO busy の原因究明用)。"""
+    busy = []
+    for name, pin in ALL_PINS.items():
+        try:
+            DigitalOutputDevice(pin).close()
+        except Exception as e:
+            hint = " ← SPIが有効だと使えない (raspi-config で SPI を無効に)" if pin in (7, 8, 9, 10, 11) else ""
+            busy.append(f"GPIO{pin} ({name}): {e}{hint}")
+    return busy
+
+
 def use_mock_pins() -> None:
     from gpiozero.pins.mock import MockFactory, MockPWMPin
     Device.pin_factory = MockFactory(pin_class=MockPWMPin)
