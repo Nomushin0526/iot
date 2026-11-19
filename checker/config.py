@@ -1,5 +1,6 @@
 """設定。環境変数またはリポジトリ直下の .env から読む (APIキー等はコードに書かない)。"""
 import os
+import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -15,8 +16,16 @@ def _load_dotenv(path: Path) -> None:
         if not line or line.startswith("#") or "=" not in line:
             continue
         key, _, value = line.partition("=")
-        value = value.strip().strip('"').strip("'")
-        os.environ.setdefault(key.strip(), value)  # 既に設定済みの環境変数を優先
+        os.environ.setdefault(key.strip(), _parse_value(value))  # 既に設定済みの環境変数を優先
+
+
+def _parse_value(value: str) -> str:
+    """値を取り出す。引用符で囲まれていなければ行末の「 # コメント」を取り除く。"""
+    value = value.strip()
+    if value[:1] in ('"', "'"):
+        end = value.find(value[0], 1)
+        return value[1:end] if end != -1 else value[1:]
+    return re.split(r"\s+#", value, maxsplit=1)[0].strip()
 
 
 _load_dotenv(ROOT / ".env")

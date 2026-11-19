@@ -190,3 +190,34 @@ def test_matches_hw_test_wiring():
     assert {str(k): v for k, v in t.DIGIT_SEGS.items()} == {k: hw.GLYPHS[k] for k in "0123456789"}
     assert tuple(t.BAR_ORDER_Q) == hw.BAR_ORDER_Q
     assert [round(r * 7 / 9) for r in range(10)] == [hw.risk_to_bar(r) for r in range(10)]
+
+
+def test_dotenv_strips_inline_comments(tmp_path, monkeypatch):
+    """.env.example の「KEY=値   # 説明」形式を正しく読めるか (以前はコメントまで値に入っていた)。"""
+    from checker.config import _load_dotenv
+    for k in ("WHISPER_MODEL", "USE_HARDWARE", "Q1", "Q2", "URL"):
+        monkeypatch.delenv(k, raising=False)
+    env = tmp_path / ".env"
+    env.write_text(
+        "WHISPER_MODEL=small              # tiny / base / small\n"
+        "USE_HARDWARE=1                   # 0 で GPIO を使わない\n"
+        'Q1="a # not comment"   # comment\n'
+        "Q2='x'\n"
+        "URL=https://hooks.slack.com/services/T0/B0/abc#frag\n", encoding="utf-8")
+    _load_dotenv(env)
+    assert os.environ["WHISPER_MODEL"] == "small"
+    assert os.environ["USE_HARDWARE"] == "1"
+    assert os.environ["Q1"] == "a # not comment"
+    assert os.environ["Q2"] == "x"
+    assert os.environ["URL"].endswith("abc#frag")   # 空白なしの # は値の一部
+
+
+def test_env_example_parses_cleanly(monkeypatch):
+    """.env.example をそのままコピーした .env で、ハードウェア有効・Whisper small になること。"""
+    from checker.config import ROOT, _load_dotenv, env_bool
+    for k in ("WHISPER_MODEL", "USE_HARDWARE", "NOTIFY_THRESHOLD", "PORT", "KEEP_AUDIO"):
+        monkeypatch.delenv(k, raising=False)
+    _load_dotenv(ROOT / ".env.example")
+    assert os.environ["WHISPER_MODEL"] == "small"
+    assert env_bool("USE_HARDWARE") is True
+    assert os.environ["NOTIFY_THRESHOLD"] == "7" and os.environ["PORT"] == "8000"
