@@ -15,6 +15,9 @@ python 04_augment_noise.py          # ASRノイズ30% + 統合 + 層化分割
 
 ### ローカルLLM（Ollama, 無料）で生成する場合
 
+Raspberry Pi + Thonny での手順は [RASPBERRY_PI.md](RASPBERRY_PI.md)。
+APIキーが無く Ollama が起動していれば、引数なしでも自動で Ollama を使う。
+
 ```bash
 ollama pull gemma3:12b
 python 03_generate_synthetic.py --backend ollama --model gemma3:12b

@@ -83,11 +83,16 @@ class LLMBackend:
         elif provider == "ollama":
             # Ollama の OpenAI互換API (http://localhost:11434/v1) を使う。APIキー不要・無料
             from openai import OpenAI
-            host = os.environ.get("OLLAMA_HOST", "http://localhost:11434").rstrip("/")
-            if not host.startswith("http"):
-                host = "http://" + host
-            self.client = OpenAI(base_url=f"{host}/v1", api_key="ollama", timeout=900)
-            self.model = model or os.environ.get("OLLAMA_MODEL", "gemma3:12b")
+            installed = ollama_models()
+            if installed is None:
+                raise SystemExit(f"Ollamaに接続できません ({ollama_host()})。`ollama serve` が動いているか確認してください。")
+            self.model = model or os.environ.get("OLLAMA_MODEL") or pick_ollama_model(installed)
+            if self.model is None:
+                raise SystemExit("Ollamaにモデルがありません。例: ollama pull gemma3:4b")
+            if self.model not in installed and f"{self.model}:latest" not in installed:
+                raise SystemExit(f"モデル {self.model} が未インストールです。`ollama pull {self.model}` を実行してください。")
+            # ラズパイ等のCPU推論は1回数分〜十数分かかるので長めに待つ。リトライは呼び出し側で行う
+            self.client = OpenAI(base_url=f"{ollama_host()}/v1", api_key="ollama", timeout=3600, max_retries=0)
         elif provider == "anthropic":
             import anthropic
             self.anthropic = anthropic
@@ -136,10 +141,39 @@ class LLMBackend:
             return r.text
 
 
+def ollama_host():
+    host = os.environ.get("OLLAMA_HOST", "http://localhost:11434").rstrip("/")
+    return host if host.startswith("http") else "http://" + host
+
+
+def ollama_models():
+    """起動中のOllamaにインストール済みのモデル名一覧。起動していなければ None。"""
+    import urllib.request
+    try:
+        with urllib.request.urlopen(f"{ollama_host()}/api/tags", timeout=2) as r:
+            return [m["name"] for m in json.load(r).get("models", [])]
+    except Exception:
+        return None
+
+
+# モデル未指定時の優先順 (大きい=高品質だが遅い)
+OLLAMA_PREFERENCE = ["gemma3:27b", "gemma3:12b", "gemma3n:e4b", "gemma3:4b"]
+
+
+def pick_ollama_model(installed):
+    for m in OLLAMA_PREFERENCE:
+        if m in installed:
+            return m
+    gemma = [m for m in installed if m.startswith("gemma")]
+    return (gemma or installed or [None])[0]
+
+
 def detect_provider():
     for key, prov in (("OPENAI_API_KEY", "openai"), ("ANTHROPIC_API_KEY", "anthropic"), ("GEMINI_API_KEY", "gemini")):
         if os.environ.get(key):
             return prov
+    if ollama_models():  # APIキーが無くてもOllamaが起動していれば使う
+        return "ollama"
     return None
 
 
@@ -245,8 +279,8 @@ def main():
 
     provider = detect_provider() if args.backend == "auto" else args.backend
     if provider is None:
-        sys.exit("APIキー (OPENAI_API_KEY / ANTHROPIC_API_KEY / GEMINI_API_KEY) が見つかりません。"
-                 "オフライン生成は --backend template を指定してください。")
+        sys.exit("APIキー (OPENAI_API_KEY / ANTHROPIC_API_KEY / GEMINI_API_KEY) も起動中のOllamaも見つかりません。"
+                 "Ollamaを起動するか、オフライン生成なら --backend template を指定してください。")
     backend = None if provider == "template" else LLMBackend(provider, args.model)
     source = "template" if provider == "template" else f"llm:{provider}:{backend.model}"
     print(f"backend = {source}")
