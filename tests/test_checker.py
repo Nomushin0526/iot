@@ -175,3 +175,18 @@ def test_keypad_flow():
         assert h.last_result["number_kind"] == "ip_phone" and h.last_result["source"] == "keypad"
         h.on_key("*")
         assert h.buffer == ""
+
+
+def test_matches_hw_test_wiring():
+    """部品テスト用の hw_test.py と本体のピン・割り当てが食い違っていないか (配線変更時の取り違え防止)。"""
+    import hw_test as t
+    assert (t.SEG_SER, t.SEG_RCK, t.SEG_SCK) == tuple(hw.SEG_SR.values())
+    assert (t.BAR_SER, t.BAR_RCK, t.BAR_SCK) == tuple(hw.BAR_SR.values())
+    assert (t.RGB_R, t.RGB_G, t.RGB_B) == tuple(hw.RGB_PINS.values())
+    assert t.BUTTON_PIN == hw.NOTIFY_BUTTON
+    assert tuple(t.KEY_ROWS) == hw.KEYPAD_ROWS and tuple(t.KEY_COLS) == hw.KEYPAD_COLS
+    assert tuple(map(tuple, t.KEYS)) == hw.KEYPAD_KEYS
+    assert t.SEG_TO_Q == hw.SEG_TO_Q
+    assert {str(k): v for k, v in t.DIGIT_SEGS.items()} == {k: hw.GLYPHS[k] for k in "0123456789"}
+    assert tuple(t.BAR_ORDER_Q) == hw.BAR_ORDER_Q
+    assert [round(r * 7 / 9) for r in range(10)] == [hw.risk_to_bar(r) for r in range(10)]

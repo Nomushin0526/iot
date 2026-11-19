@@ -84,7 +84,9 @@
 
 ### 既存コード
 - `hw_test.py`：部品ごとの動作確認（`rgb` / `seg` / `bar` / `button` / `keypad` / `all`）。`ShiftRegister`・`Panel`（`show_risk(0〜9)`）・`Keypad` クラスはこのまま本体に流用してよい。
-  - ※ `hw_test.py` と `fraud_wiring.png` はまだリポジトリに入っていない。本体の `checker/hardware.py` は上の表から書き起こしたもの。`hw_test.py` を追加したら食い違いがないか照合する。
+  - 本体の `checker/hardware.py` は `hw_test.py` とピン・割り当てが一致していることをテスト (`tests/test_checker.py::test_matches_hw_test_wiring`) で確認している。配線を変えたら両方を直す。
+  - 色の区切りだけ異なる: `hw_test.py` は 0〜2 緑 / 3〜5 黄 / 6〜9 赤、本体は 0〜3 緑 / 4〜6 黄 / 7〜9 赤（Slack 自動通知のしきい値 7 と赤をそろえている）。
+  - `fraud_wiring.png` はまだリポジトリに入っていない。
 
 ## 5. 現在の状況（2026年11月19日時点）
 
