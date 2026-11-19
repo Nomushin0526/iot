@@ -56,7 +56,7 @@ ollama run gemma3:4b "留守番電話のメッセージを1つ書いて"
 
 ```bash
 cd ~
-git clone -b ollama-backend https://github.com/Nomushin0526/iot.git
+git clone https://github.com/Nomushin0526/iot.git
 ```
 
 ## 5. Python 環境を作って Thonny に設定
