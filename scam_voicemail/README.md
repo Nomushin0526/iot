@@ -13,6 +13,18 @@ python 03_generate_synthetic.py     # LLMで水増し → data/processed/synthet
 python 04_augment_noise.py          # ASRノイズ30% + 統合 + 層化分割
 ```
 
+### ローカルLLM（Ollama, 無料）で生成する場合
+
+```bash
+ollama pull gemma3:12b
+python 03_generate_synthetic.py --backend ollama --model gemma3:12b
+```
+
+`OLLAMA_HOST`（既定 `http://localhost:11434`）で別マシンのOllamaも指定できる。
+小型モデルは「〇〇様」「XXXX」のような伏せ字を出しがちなので、該当する出力は自動で捨てている。
+`--categories refund_scam,relative_scam` のように対象カテゴリを絞れるので、
+カテゴリやモデルを分けて生成し、文体の偏りを減らすこともできる。
+
 `03` は `OPENAI_API_KEY` → `ANTHROPIC_API_KEY` → `GEMINI_API_KEY` の順で見つかったものを使う。
 モデルは `--model` または `OPENAI_MODEL` / `ANTHROPIC_MODEL` / `GEMINI_MODEL` で変更可能。
 10件ずつ生成して追記するので、中断しても再実行すれば続きから生成する。

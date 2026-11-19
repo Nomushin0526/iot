@@ -10,6 +10,7 @@
 例:
   python 03_generate_synthetic.py                 # 自動でAPIキーを検出
   python 03_generate_synthetic.py --backend anthropic --model claude-haiku-5-5
+  python 03_generate_synthetic.py --backend ollama --model gemma3:12b   # ローカルLLM (無料)
   python 03_generate_synthetic.py --backend template
 """
 import argparse
@@ -49,6 +50,12 @@ STYLES = {
     1: ["丁寧で事務的", "威圧的・高圧的", "機械音声風(抑揚のない自動ガイダンス)", "焦った・切迫した口調"],
     0: ["丁寧で事務的", "機械音声風(自動ガイダンス)", "くだけた口調", "少し急いだ口調"],
 }
+# カテゴリ固有の話し方 (STYLES より優先。不自然な組み合わせでラベルとずれた文が出るのを防ぐ)
+CATEGORY_STYLES = {
+    "relative_scam": ["焦った・切迫した口調", "くだけた口調(身内に話す感じ)", "弱々しく困った口調"],
+    "normal_personal": ["くだけた口調", "少し急いだ口調", "のんびりした口調"],
+}
+NAME_EXAMPLES = {"ja": "田中、佐藤、山本", "en": "Smith, Johnson, Brown", "zh": "王、李、张"}
 LENGTHS = {
     "ja": [("15秒程度", "60〜90文字"), ("30秒程度", "130〜170文字"), ("45秒程度", "200〜250文字")],
     "zh": [("15秒程度", "50〜70字"), ("30秒程度", "100〜130字"), ("45秒程度", "150〜190字")],
@@ -73,6 +80,14 @@ class LLMBackend:
             from openai import OpenAI
             self.client = OpenAI()
             self.model = model or os.environ.get("OPENAI_MODEL", "gpt-4.1-mini")
+        elif provider == "ollama":
+            # Ollama の OpenAI互換API (http://localhost:11434/v1) を使う。APIキー不要・無料
+            from openai import OpenAI
+            host = os.environ.get("OLLAMA_HOST", "http://localhost:11434").rstrip("/")
+            if not host.startswith("http"):
+                host = "http://" + host
+            self.client = OpenAI(base_url=f"{host}/v1", api_key="ollama", timeout=900)
+            self.model = model or os.environ.get("OLLAMA_MODEL", "gemma3:12b")
         elif provider == "anthropic":
             import anthropic
             self.anthropic = anthropic
@@ -87,7 +102,7 @@ class LLMBackend:
             raise ValueError(provider)
 
     def complete(self, user_prompt: str) -> str:
-        if self.provider == "openai":
+        if self.provider in ("openai", "ollama"):
             r = self.client.chat.completions.create(
                 model=self.model,
                 messages=[{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": user_prompt}],
@@ -138,7 +153,10 @@ def build_prompt(category, label, lang, style, length, n, examples):
         f"- 言語: {LANG_NAME[lang]}\n- 話し方: {style}\n- 長さ: 読み上げ{sec}({size})\n- 件数: {n}件\n\n"
         f"## お手本(この雰囲気を参考に、そのまま真似せず新しい内容で)\n{ex}\n\n"
         "## 条件\n"
-        "- 機関名・人名(架空)・金額・期限・押すボタン番号・状況を1件ごとに変える\n"
+        "- 機関名・人名・金額・期限・押すボタン番号・状況を1件ごとに変える\n"
+        f"- 人名は具体的なありふれた名字(例: {NAME_EXAMPLES[lang]} など、毎回違うもの)を使う。「〇〇」「XXXX」などの伏せ字や「(架空)」のような注記は絶対に書かない\n"
+        "- 電話番号・口座番号は読み上げない(「この番号に」「折り返し」などと表現する)\n"
+        "- 書き言葉の箇条書きや「期日：」のような表記は使わず、電話で話した言葉そのままにする\n"
         "- 留守電なので相手の応答は含めず、発信者の一方的な発話のみ\n"
         "- 句読点は通常どおり付ける(ノイズは後工程で付与する)\n"
         f'- JSON {{"messages": [...]}} に{n}件の文字列を入れて出力'
@@ -154,7 +172,11 @@ def parse_messages(raw: str) -> list[str]:
     except json.JSONDecodeError:
         return []
     msgs = data.get("messages", []) if isinstance(data, dict) else []
-    return [s.strip() for s in msgs if isinstance(s, str) and len(s.strip()) >= 15]
+    return [s.strip() for s in msgs if isinstance(s, str) and len(s.strip()) >= 15 and not PLACEHOLDER_RE.search(s)]
+
+
+# 小型モデルが出しがちな伏せ字・メタ注記 (学習時のショートカットになるので除外)
+PLACEHOLDER_RE = re.compile(r"〇〇|○○|◯◯|XXX|xxx|\*\*\*|架空|\[.*?\]|【|】|[:：]\s*[〇○0-9]|\(仮\)|（仮）|<.*?>")
 
 
 # ---------------------------------------------------------------- 重複除去
@@ -211,12 +233,13 @@ def compute_quotas(seeds, existing, target_per_label):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--backend", default="auto", choices=["auto", "openai", "anthropic", "gemini", "template"])
+    ap.add_argument("--backend", default="auto", choices=["auto", "openai", "anthropic", "gemini", "ollama", "template"])
     ap.add_argument("--model", default=None)
     ap.add_argument("--target-per-label", type=int, default=1000)
     ap.add_argument("--batch-size", type=int, default=10)
     ap.add_argument("--sleep", type=float, default=1.0, help="API呼び出し間の待機秒")
     ap.add_argument("--max-batches", type=int, default=0, help="0=無制限 (お試し実行用)")
+    ap.add_argument("--categories", default="", help="カンマ区切りで生成対象カテゴリを限定 (例: refund_scam,relative_scam)")
     ap.add_argument("--seed", type=int, default=42)
     args = ap.parse_args()
 
@@ -233,6 +256,9 @@ def main():
     if not seeds:
         sys.exit("seed_data.jsonl がありません。先に 02_create_seed_data.py を実行してください。")
     quotas = compute_quotas(seeds, hf + seeds, args.target_per_label)
+    if args.categories:
+        only = set(args.categories.split(","))
+        quotas = {k: v for k, v in quotas.items() if k[0] in only}
 
     done = read_jsonl(OUT)
     have = Counter((r["category"], r["language"]) for r in done)
@@ -257,7 +283,7 @@ def main():
         cat, lang = key
         label = label_of[cat]
         n = min(args.batch_size, deficits[key])
-        style = rng.choice(STYLES[label])
+        style = rng.choice(CATEGORY_STYLES.get(cat, STYLES[label]))
         length = rng.choice(LENGTHS[lang])
 
         if backend is None:
