@@ -139,7 +139,8 @@ async def lifespan(app: FastAPI):
     threading.Thread(target=_warm_up_whisper, daemon=True).start()
     yield
     if HW:
-        HW.close()
+        HW.close()  # 表示を消してからピンを手放す (595 は最後の表示を保持し続けるため)
+        print("[hw] cleared")
 
 
 app = FastAPI(title="留守電 詐欺チェッカー", lifespan=lifespan)

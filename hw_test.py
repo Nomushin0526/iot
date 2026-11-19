@@ -9,6 +9,7 @@
     python3 hw_test.py button   # ボタンを押すと表示される
     python3 hw_test.py keypad   # 押したキーが表示される
     python3 hw_test.py all      # 全部まとめて（危険度のデモ）
+    python3 hw_test.py off      # 全部消す（サーバーを強制終了して表示が残ったとき用）
 
 Ctrl+C で終了。sudo は不要（gpiozero が使えれば動く）。
 """
@@ -158,7 +159,7 @@ def test_all(p):
 
 if __name__ == "__main__":
     mode = sys.argv[1] if len(sys.argv) > 1 else ""
-    panel = Panel() if mode in ("rgb", "seg", "bar", "all") else None
+    panel = Panel() if mode in ("rgb", "seg", "bar", "all", "off") else None
     try:
         if mode == "rgb":
             test_rgb(panel)
@@ -172,6 +173,8 @@ if __name__ == "__main__":
             test_keypad()
         elif mode == "all":
             test_all(panel)
+        elif mode == "off":
+            print("表示を消しました")  # finally の panel.clear() で消える
         else:
             print(__doc__)
     except KeyboardInterrupt:
