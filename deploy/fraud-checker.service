@@ -1,0 +1,21 @@
+# 起動時に詐欺チェッカーを自動起動する systemd サービス
+# インストール (User と パス を自分の環境に合わせて書き換えてから):
+#   sudo cp deploy/fraud-checker.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now fraud-checker
+# ログ確認: journalctl -u fraud-checker -f
+[Unit]
+Description=Voicemail fraud checker
+After=network-online.target ollama.service
+Wants=network-online.target
+
+[Service]
+User=pi
+WorkingDirectory=/home/pi/iot
+ExecStart=/home/pi/iot-venv/bin/python run_server.py
+Restart=on-failure
+RestartSec=5
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=multi-user.target

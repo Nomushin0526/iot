@@ -7,3 +7,9 @@ scam_voicemail/data/processed/*.jsonl
 scam_voicemail/data/dataset.jsonl
 scam_voicemail/data/train.jsonl
 scam_voicemail/data/val.jsonl
+# 詐欺チェッカーの実行時データ (文字起こし・音声を含むので入れない)
+data/check_log.csv
+data/results.jsonl
+data/uploads/
+data/eval_set.csv
+data/eval_audio/

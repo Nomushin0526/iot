@@ -1,0 +1,10 @@
+# 詐欺チェッカー本体 (Raspberry Pi 5)
+# gpiozero / lgpio は Raspberry Pi OS に入っているものを使う (venv は --system-site-packages で作る)
+fastapi
+uvicorn
+python-multipart
+faster-whisper
+av<18   # av 19 で faster-whisper 1.2.1 が使う引数 metadata_errors が廃止されたため
+# 内容判定に LLM を使う場合 (Ollama も openai パッケージで通信する)
+openai
+anthropic
