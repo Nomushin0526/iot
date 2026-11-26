@@ -319,3 +319,41 @@ def test_server_text_only():
         safe = client.post("/check", data={"number": "03-1234-5678",
                                            "text": "さくら歯科です。明日午後3時のご予約の確認です。"}).json()
         assert safe["risk"] <= 3
+
+
+def test_slack_bot_token_and_webhook(monkeypatch):
+    """Webhook 優先、無ければ Bot トークン + チャンネルで chat.postMessage。API エラーは原因を日本語で返す。"""
+    import io, json as _json
+    from checker import notify
+    sent = []
+
+    class Resp(io.BytesIO):
+        status = 200
+        def __enter__(self): return self
+        def __exit__(self, *a): pass
+
+    def fake_urlopen(req, timeout):
+        sent.append((req.full_url, dict(req.header_items()), _json.loads(req.data)))
+        if "chat.postMessage" in req.full_url:
+            ok = req.get_header("Authorization") == "Bearer xoxb-good"
+            return Resp(_json.dumps({"ok": ok, **({} if ok else {"error": "not_in_channel"})}).encode())
+        return Resp(b"ok")
+
+    monkeypatch.setattr(notify.urllib.request, "urlopen", fake_urlopen)
+    monkeypatch.setattr(config, "SLACK_WEBHOOK_URL", "")
+    monkeypatch.setattr(config, "SLACK_BOT_TOKEN", "")
+    monkeypatch.setattr(config, "SLACK_CHANNEL", "")
+    assert notify.send_slack("x")[0] is False and not sent            # 設定なし
+
+    monkeypatch.setattr(config, "SLACK_BOT_TOKEN", "xoxb-good")
+    monkeypatch.setattr(config, "SLACK_CHANNEL", "C123")
+    ok, info = notify.send_slack("テスト")
+    assert ok and sent[-1][2] == {"channel": "C123", "text": "テスト"}
+
+    monkeypatch.setattr(config, "SLACK_BOT_TOKEN", "xoxb-bad")
+    ok, info = notify.send_slack("テスト")
+    assert not ok and "not_in_channel" in info and "/invite" in info
+
+    monkeypatch.setattr(config, "SLACK_WEBHOOK_URL", "https://hooks.slack.com/services/T/B/x")
+    ok, info = notify.send_slack("テスト")
+    assert ok and sent[-1][0].startswith("https://hooks.slack.com") and "Authorization" not in sent[-1][1]

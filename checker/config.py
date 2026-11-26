@@ -69,6 +69,8 @@ MASK_NAMES = [n for n in env("MASK_NAMES").split(",") if n.strip()]  # 外部送
 
 # --- 通知
 SLACK_WEBHOOK_URL = env("SLACK_WEBHOOK_URL")
+SLACK_BOT_TOKEN = env("SLACK_BOT_TOKEN")    # Webhook の代わりに Bot トークン (xoxb-...) でも送れる
+SLACK_CHANNEL = env("SLACK_CHANNEL")        # Bot トークンを使うときの送り先チャンネル ID (C...)
 NOTIFY_THRESHOLD = env_int("NOTIFY_THRESHOLD", 7)  # 危険度がこれ以上で自動通知
 SLACK_SHOW_NUMBER = env_bool("SLACK_SHOW_NUMBER", False)  # True で番号を伏せずに送る
 

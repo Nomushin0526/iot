@@ -143,6 +143,20 @@ cd ~/iot && ~/iot-venv/bin/python -m checker.evaluate --log data/check_log.csv
 
 ### 5-1. Slack 通知
 
+**Bot トークン（`xoxb-...`）を持っている場合はこちらが早い**: `~/iot/.env` に次の2行を書く。
+
+```
+SLACK_BOT_TOKEN=xoxb-...
+SLACK_CHANNEL=C...
+```
+
+- `SLACK_CHANNEL` はチャンネル ID（Slack でチャンネル名を右クリック →「チャンネル詳細を表示」の一番下）
+- Bot をそのチャンネルに招待しておく（チャンネルで `/invite @Botの名前`）
+- Bot に `chat:write` 権限が必要（アプリ設定の「OAuth & Permissions」）
+- 書いたら下の 6. のテスト送信へ。失敗したときは原因と直し方が表示される
+
+**Webhook を使う場合**:
+
 1. Slack で家族用のワークスペース（またはチャンネル）を用意する
 2. https://api.slack.com/apps →「Create New App」→「From scratch」→ アプリ名（例: 詐欺チェッカー）とワークスペースを選ぶ
 3. 左メニュー「Incoming Webhooks」→ オンにする →「Add New Webhook to Workspace」→ 通知先のチャンネルを選ぶ

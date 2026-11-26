@@ -26,16 +26,43 @@ def build_message(result: dict, manual: bool = False) -> str:
 
 
 def send_slack(text: str) -> tuple[bool, str]:
-    if not config.SLACK_WEBHOOK_URL:
-        return False, "SLACK_WEBHOOK_URL が未設定"
+    """Webhook URL があればそれで、なければ Bot トークン + チャンネル ID で送る。"""
+    if config.SLACK_WEBHOOK_URL:
+        return _post(config.SLACK_WEBHOOK_URL, {"text": text}, headers={})
+    if config.SLACK_BOT_TOKEN and config.SLACK_CHANNEL:
+        return _post("https://slack.com/api/chat.postMessage",
+                     {"channel": config.SLACK_CHANNEL, "text": text},
+                     headers={"Authorization": f"Bearer {config.SLACK_BOT_TOKEN}"}, api=True)
+    return False, "Slack の設定がありません (.env に SLACK_WEBHOOK_URL か SLACK_BOT_TOKEN + SLACK_CHANNEL)"
+
+
+# chat.postMessage のよくあるエラーと直し方
+API_ERROR_HINTS = {
+    "not_in_channel": "Bot がチャンネルに入っていない → Slack でそのチャンネルを開き「/invite @Botの名前」",
+    "channel_not_found": "チャンネル ID が違う、または Bot が見られない非公開チャンネル → ID を確認し Bot を招待",
+    "missing_scope": "Bot に chat:write 権限がない → アプリ設定の OAuth & Permissions で追加して再インストール",
+    "invalid_auth": "トークンが違う・無効 → .env の SLACK_BOT_TOKEN を確認 (xoxb- で始まるもの)",
+    "token_revoked": "トークンが無効化されている → アプリを再インストールして新しいトークンを使う",
+    "not_authed": "トークンが送られていない → .env の SLACK_BOT_TOKEN を確認",
+}
+
+
+def _post(url: str, payload: dict, headers: dict, api: bool = False) -> tuple[bool, str]:
     req = urllib.request.Request(
-        config.SLACK_WEBHOOK_URL,
-        data=json.dumps({"text": text}).encode(),
-        headers={"Content-Type": "application/json"},
+        url,
+        data=json.dumps(payload).encode(),
+        headers={"Content-Type": "application/json; charset=utf-8", **headers},
     )
     try:
         with urllib.request.urlopen(req, timeout=10) as r:
-            return r.status == 200, f"HTTP {r.status}"
+            body = r.read().decode("utf-8", "replace")
+            if not api:
+                return r.status == 200, f"HTTP {r.status}"
+            data = json.loads(body)  # Web API はエラーでも HTTP 200 で {"ok": false, "error": ...} を返す
+            if data.get("ok"):
+                return True, "HTTP 200 (Bot)"
+            err = data.get("error", "unknown")
+            return False, f"{err}: {API_ERROR_HINTS.get(err, 'Slack API のエラー')}"
     except Exception as e:
         return False, f"{type(e).__name__}: {e}"
 
