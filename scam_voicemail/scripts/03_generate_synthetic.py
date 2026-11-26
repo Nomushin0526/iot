@@ -210,7 +210,35 @@ def parse_messages(raw: str) -> list[str]:
         # 途中で打ち切られた JSON: "messages": [ の後ろにある、閉じた文字列だけを回収する
         body = (raw or "").split('"messages"', 1)[-1]
         msgs = [json.loads(f'"{s}"') for s in re.findall(r'"((?:[^"\\]|\\.)*)"', body)]
-    return [s.strip() for s in msgs if isinstance(s, str) and len(s.strip()) >= 15 and not PLACEHOLDER_RE.search(s)]
+    out = []
+    for s in msgs:
+        if not isinstance(s, str):
+            continue
+        s = fill_placeholders(s.strip())
+        if len(s) >= 15 and not PLACEHOLDER_RE.search(s):
+            out.append(s)
+    return out
+
+
+# 小型モデルは「〇〇区役所」「〇〇様」のような伏せ字を多用する。捨てると歩留まりが極端に下がるので、
+# ありふれた地名・名字に置き換えて使う (置き換えられないものは PLACEHOLDER_RE で捨てる)
+_PLACES = ["中央", "港", "北", "南", "青葉", "緑", "西", "東", "横浜", "千葉", "さいたま", "川崎", "大宮", "豊島", "世田谷"]
+_SURNAMES = ["佐藤", "鈴木", "高橋", "田中", "伊藤", "渡辺", "山本", "中村", "小林", "加藤", "吉田", "山田", "松本", "井上", "木村"]
+_PH = r"(?:〇〇|○○|◯◯|〇|○)"
+
+
+def fill_placeholders(t: str) -> str:
+    rnd = random.Random(t)  # 同じ文には同じ置き換え (再現性)
+    t = re.sub(r"[（(][^）)]*架空[^）)]*[）)]", "", t)                       # (架空の人名) などの注記
+    t = re.sub(r"\d{0,4}-?[XxＸ]{3,4}-?[XxＸ]{3,4}", "こちらの番号", t)         # 03-XXXX-XXXX
+    t = re.sub(_PH + r"(?=(市|区|町|村|県|府|都|役所|役場))", lambda m: rnd.choice(_PLACES), t)
+    t = re.sub(_PH + r"(?=(様|さま|さん|くん|ちゃん|と申します|です))", lambda m: rnd.choice(_SURNAMES), t)
+    t = re.sub(_PH + r"(?=月)", lambda m: str(rnd.randint(1, 12)), t)
+    t = re.sub(_PH + r"(?=日)", lambda m: str(rnd.randint(1, 28)), t)
+    t = re.sub(_PH + r"(?=時)", lambda m: str(rnd.randint(9, 17)), t)
+    t = re.sub(_PH + r"(?=万)", lambda m: str(rnd.randint(1, 50)), t)
+    t = re.sub(_PH + r"(?=円)", lambda m: rnd.choice(["12,800", "28,000", "35,600", "48,000", "6,500"]), t)
+    return re.sub(r"\s{2,}", " ", t).strip()
 
 
 # 小型モデルが出しがちな伏せ字・メタ注記 (学習時のショートカットになるので除外)
