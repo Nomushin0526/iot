@@ -282,7 +282,8 @@ def test_classifier_backend(tmp_path, monkeypatch):
     safe = check_content("歯科です 明日のご予約の確認です", "classifier")
     assert scam.backend == "classifier" and scam.score > safe.score
     assert "ATM" in scam.phrases                       # ハイライト用の語句はキーワード判定から
-    assert any("学習モデル" in r for r in scam.reasons)
+    assert any("学習モデル" in r for r in scam.reasons) == (scam.score >= 0.5)
+    assert not any("学習モデル" in r for r in safe.reasons) or safe.score >= 0.5
     monkeypatch.setattr(config, "CLASSIFIER_MODEL", tmp_path / "missing.joblib")
     monkeypatch.setattr(classifier, "_model", None)
     fb = check_content("還付金 ATM", "classifier")       # モデルが無ければキーワード判定にフォールバック

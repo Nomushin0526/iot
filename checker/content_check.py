@@ -211,7 +211,9 @@ def check_content(text: str, backend: str | None = None) -> ContentResult:
             from . import classifier
             score, top = classifier.predict(text)
             kw = keyword_score(text)  # 画面のハイライト用の語句はキーワード判定から借りる
-            reasons = (["学習モデルが反応した文字列: " + "・".join(f"「{t}」" for t in top)] if top else []) + kw.reasons
+            # 詐欺寄りと判定したときだけ、効いた文字列を根拠として出す (安全なのに「反応した」と出ると紛らわしい)
+            reasons = (["学習モデルが反応した文字列: " + "・".join(f"「{t}」" for t in top)]
+                       if top and score >= 0.5 else []) + kw.reasons
             return ContentResult(round(score, 3), kw.phrases, reasons[:5], "classifier")
         except Exception as e:
             fallback = keyword_score(text)
