@@ -1,0 +1,6 @@
+audio,text,number,label,category
+eval_audio/scam_01.mp3,,+8612345678,1,police_fake
+eval_audio/scam_02.mp3,,05000000000,1,refund
+eval_audio/normal_01.m4a,,0312345678,0,normal_auto
+eval_audio/normal_05.m4a,,09012345678,0,normal_personal
+,こちらは市役所です。医療費の還付金があります。本日中にATMで手続きしてください。,0312345678,1,refund_text

@@ -11,6 +11,7 @@ LED・7セグ・バーグラフで本人に、Slack で家族に知らせる装�
 | `deploy/fraud-checker.service` | 自動起動用 systemd サービス |
 | `tests/` | PC で動くテスト（GPIO は模擬ピン） |
 | [`scam_voicemail/`](scam_voicemail/) | 内容判定モデル用データセットの構築パイプライン |
+| [`docs/NEXT_STEPS.md`](docs/NEXT_STEPS.md) | **残りの作業の手順**（モデルの学習・評価用データ・評価・Slack・iPhone） |
 
 ## 処理の流れ
 
