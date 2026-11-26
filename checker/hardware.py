@@ -3,10 +3,11 @@
 ピン割り当てとビット割り当ては CLAUDE.md の表に合わせている。変更したら両方を更新すること。
 USE_HARDWARE=0 または gpiozero が実機ピンを使えない環境では MockFactory で動く (PCでの開発用)。
 """
+import os
 import threading
 import time
 
-from gpiozero import Button, Device, DigitalOutputDevice, RGBLED
+from gpiozero import Button, Device, DigitalOutputDevice
 
 # ---------------------------------------------------------------- ピン (BCM)
 SEG_SR = dict(ser=21, rck=20, sck=16)   # 74HC595 A: 7セグ
@@ -37,7 +38,9 @@ BAR_LEVELS = len(BAR_ORDER_Q)
 
 COLORS = {
     "green": (0, 1, 0),
-    "yellow": (1, 0.6, 0),
+    # 黄は赤と緑を交互に点けて作る (SequentialRGB)。値は点灯時間の割合。
+    # 緑は赤より暗く光るので緑を長めにしている。RGB_YELLOW="0.3,1,0" のように環境変数で調整できる
+    "yellow": tuple(float(x) for x in os.environ.get("RGB_YELLOW", "0.3,1,0").split(",")),
     "red": (1, 0, 0),
     "blue": (0, 0, 1),
     "off": (0, 0, 0),
@@ -97,6 +100,85 @@ def use_mock_pins() -> None:
 
 
 # ---------------------------------------------------------------- 部品クラス
+class SequentialRGB:
+    """RGB LED を「1色ずつ高速に切り替えて」混ぜた色を出す。
+
+    この装置の配線は、RGB LED の共通の足 (カソード) に 220Ω を1本だけ付けている。
+    この配線で2色を同時に点けると、点灯電圧の低い赤に電流が集まり、緑・青が光らない
+    (黄 = 赤+緑 が赤にしか見えない)。そこで2色以上のときは 1/100 秒ごとに色を順番に
+    点け、同時に点く色が常に1つになるようにする。1色だけのときは点けっぱなし。
+    gpiozero の RGBLED と同じ color / off / blink / close を持つ。
+    """
+
+    FRAME = 0.01  # 1周期 10ms (100Hz) → 目にはちらつかず混ざって見える
+
+    def __init__(self, red: int, green: int, blue: int):
+        self._leds = [DigitalOutputDevice(p) for p in (red, green, blue)]
+        self._color = (0, 0, 0)
+        self._stop = threading.Event()
+        self._thread: threading.Thread | None = None
+
+    @property
+    def color(self) -> tuple:
+        return self._color
+
+    @color.setter
+    def color(self, value) -> None:
+        self._start(tuple(value), blink=None)
+
+    def off(self) -> None:
+        self.color = (0, 0, 0)
+
+    def blink(self, on_time=0.5, off_time=0.5, on_color=(1, 1, 1), background=True) -> None:
+        self._start(tuple(on_color), blink=(on_time, off_time))
+
+    def _halt(self) -> None:
+        if self._thread and self._thread.is_alive():
+            self._stop.set()
+            self._thread.join(timeout=1)
+        self._thread = None
+        self._stop.clear()
+        for led in self._leds:
+            led.off()
+
+    def _start(self, color: tuple, blink) -> None:
+        self._halt()
+        self._color = color
+        active = [(led, v) for led, v in zip(self._leds, color) if v > 0]
+        if blink is None and len(active) <= 1:
+            for led, _ in active:   # 1色だけなら点けっぱなし (切り替え不要)
+                led.on()
+            return
+        self._thread = threading.Thread(target=self._loop, args=(active, blink), daemon=True, name="rgb")
+        self._thread.start()
+
+    def _loop(self, active, blink) -> None:
+        total = sum(v for _, v in active) or 1
+        t0 = time.monotonic()
+        while not self._stop.is_set():
+            if blink:
+                on_t, off_t = blink
+                if (time.monotonic() - t0) % (on_t + off_t) >= on_t:  # 点滅の「消えている」時間
+                    self._stop.wait(self.FRAME)
+                    continue
+            if len(active) == 1:
+                active[0][0].on()
+                self._stop.wait(self.FRAME)
+                active[0][0].off()
+                continue
+            for led, v in active:  # 同時に点くのは常に1色だけ
+                led.on()
+                self._stop.wait(self.FRAME * v / total)
+                led.off()
+                if self._stop.is_set():
+                    break
+
+    def close(self) -> None:
+        self._halt()
+        for led in self._leds:
+            led.close()
+
+
 class ShiftRegister:
     """74HC595。Q7 から順に8ビット送って RCK を立ち上げると、最後に送ったビットが Q0 に入る。"""
 
@@ -128,7 +210,7 @@ class Panel:
         self._lock = threading.Lock()
         self.seg = ShiftRegister(**SEG_SR)
         self.bar = ShiftRegister(**BAR_SR)
-        self.rgb = RGBLED(**RGB_PINS, active_high=True)
+        self.rgb = SequentialRGB(**RGB_PINS)  # 共通抵抗1本の配線でも色を混ぜられるように
         self.clear()  # 電源投入直後の595の不定状態を消す
 
     def show_char(self, ch: str) -> None:

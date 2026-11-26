@@ -58,10 +58,39 @@ def test_panel_show_risk_colors():
     p.show_risk(9)
     assert p.rgb.color == (1, 0, 0) and p.bar.value == hw.bar_bits(7) and p.seg.value == hw.glyph_bits("9")
     p.show_risk(5)
-    assert tuple(round(c, 1) for c in p.rgb.color) == (1, 0.6, 0)
+    assert p.rgb.color == hw.COLORS["yellow"]
     p.show_risk(1)
     assert p.rgb.color == (0, 1, 0)
     p.close()
+
+
+def test_sequential_rgb_never_lights_two_colors_at_once():
+    """共通抵抗1本の配線では2色同時点灯で赤しか光らないので、黄色は赤と緑を交互に点ける。"""
+    import time
+    hw.use_mock_pins()
+    rgb = hw.SequentialRGB(**hw.RGB_PINS)
+    r, g, b = rgb._leds
+    lit, overlaps = [], []
+    for name, led in zip("rgb", rgb._leds):  # 点ける瞬間に他の色が消えているかを記録
+        def on(led=led, name=name, orig=led.on):
+            if any(o.value for o in rgb._leds if o is not led):
+                overlaps.append(name)
+            lit.append(name)
+            orig()
+        led.on = on
+    rgb.color = hw.COLORS["yellow"]
+    time.sleep(0.3)
+    rgb.off()
+    assert overlaps == []                  # 赤と緑が同時に点いた瞬間がない
+    assert "r" in lit and "g" in lit and "b" not in lit  # 赤と緑の両方が点いている
+    rgb.color = (0, 1, 0)                  # 1色だけなら点けっぱなし
+    assert rgb._thread is None and (r.value, g.value, b.value) == (0, 1, 0)
+    rgb.blink(0.05, 0.05, on_color=(0, 0, 1))
+    time.sleep(0.2)
+    assert rgb._thread is not None
+    rgb.off()
+    assert (r.value, g.value, b.value) == (0, 0, 0) and rgb._thread is None
+    rgb.close()
 
 
 def test_button_short_press_and_hold():

@@ -52,7 +52,7 @@
 - Raspberry Pi 5（Raspberry Pi OS）。GPIOは **gpiozero（lgpioバックエンド）** を使う。**RPi.GPIO は Pi 5 で動かない**。
 - **SPIは無効のまま**にする（GPIO8 を普通のGPIOとして使うため）。
 - ネット接続あり。
-- ブレッドボードはT型拡張ボード（GPIO Extension Board）経由。配線図は `fraud_wiring.png`（列番号・行記号は実物と一致）。
+- ブレッドボードはT型拡張ボード（GPIO Extension Board）経由。配線図は `fraud_wiring.jpg`（列番号・行記号は実物と一致）。
 
 ### ピン割り当て（BCM番号）
 
@@ -80,13 +80,15 @@
   - Q1→c、Q2→d、Q3→e、Q4→g、Q5→f、Q6→a、Q7→b、Q0は未使用（小数点なし）
 - バーグラフ（10セグ中7セグ使用、595側がアノード → 出力 HIGH で点灯。カソードは各220Ωで GND へ）
   - 光らせる順（1段目→7段目）：Q7, Q6, Q5, Q4, Q3, Q2, Q1
-- RGB LED：カソードコモン、共通ピンに220Ω 1本。`gpiozero.RGBLED`（active_high=True）で緑 `(0,1,0)`・黄 `(1,0.6,0)`・赤 `(1,0,0)`。
+- RGB LED：カソードコモン、共通ピンに220Ω 1本（配線図の59列=R、60列=共通→220Ω→−レール、61列=G、62列=B）。
+  - **この配線では2色を同時に点けると赤しか光らない**（赤の点灯電圧が低く電流が集中するため）。実機で確認済み。
+  - そのため本体は `gpiozero.RGBLED` ではなく `checker/hardware.py` の `SequentialRGB` を使い、黄などの混色は赤と緑を 100Hz で交互に点けて作る（同時に点く色は常に1つ）。黄の割合は環境変数 `RGB_YELLOW`（既定 `0.3,1,0`）で調整。
+  - `hw_test.py rgb` は RGBLED のままなので、黄は赤に見える（配線の問題ではない）。
 
 ### 既存コード
 - `hw_test.py`：部品ごとの動作確認（`rgb` / `seg` / `bar` / `button` / `keypad` / `all`）。`ShiftRegister`・`Panel`（`show_risk(0〜9)`）・`Keypad` クラスはこのまま本体に流用してよい。
   - 本体の `checker/hardware.py` は `hw_test.py` とピン・割り当てが一致していることをテスト (`tests/test_checker.py::test_matches_hw_test_wiring`) で確認している。配線を変えたら両方を直す。
   - 色の区切りだけ異なる: `hw_test.py` は 0〜2 緑 / 3〜5 黄 / 6〜9 赤、本体は 0〜3 緑 / 4〜6 黄 / 7〜9 赤（Slack 自動通知のしきい値 7 と赤をそろえている）。
-  - `fraud_wiring.png` はまだリポジトリに入っていない。
 
 ## 5. 現在の状況（2026年11月19日時点）
 
