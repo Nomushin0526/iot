@@ -113,6 +113,7 @@ class LLMBackend:
                 messages=[{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": user_prompt}],
                 response_format={"type": "json_object"},
                 temperature=1.0,
+                max_tokens=3000,  # 出力が止まらなくなる (Ollama の JSON モードでまれに起きる) のを防ぐ
             )
             return r.choices[0].message.content
         if self.provider == "anthropic":
@@ -199,13 +200,16 @@ def build_prompt(category, label, lang, style, length, n, examples):
 
 def parse_messages(raw: str) -> list[str]:
     m = re.search(r"\{.*\}", raw or "", re.S)
-    if not m:
-        return []
     try:
-        data = json.loads(m.group(0))
+        data = json.loads(m.group(0)) if m else None
     except json.JSONDecodeError:
-        return []
-    msgs = data.get("messages", []) if isinstance(data, dict) else []
+        data = None
+    if isinstance(data, dict):
+        msgs = data.get("messages", [])
+    else:
+        # 途中で打ち切られた JSON: "messages": [ の後ろにある、閉じた文字列だけを回収する
+        body = (raw or "").split('"messages"', 1)[-1]
+        msgs = [json.loads(f'"{s}"') for s in re.findall(r'"((?:[^"\\]|\\.)*)"', body)]
     return [s.strip() for s in msgs if isinstance(s, str) and len(s.strip()) >= 15 and not PLACEHOLDER_RE.search(s)]
 
 

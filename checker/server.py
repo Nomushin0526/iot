@@ -156,10 +156,12 @@ def _auth(token: str | None):
 def check(
     file: UploadFile | None = File(None),
     number: str = Form(""),
+    text: str = Form(""),
     token: str = Form(""),
     x_token: str | None = Header(None),
 ):
-    """iPhoneショートカット「URLの内容を取得」(方法: POST, 本文: フォーム) から呼ぶ。"""
+    """iPhoneショートカット「URLの内容を取得」(方法: POST, 本文: フォーム) から呼ぶ。
+    音声の代わりに text (文字起こし済みの文) を送ると、文字起こしを飛ばして内容判定する (動作確認用)。"""
     _auth(x_token or token)
     audio_path = None
     if file is not None and file.filename:
@@ -173,7 +175,8 @@ def check(
         HW.panel.busy()
     try:
         result = run_check(audio_path=str(audio_path) if audio_path else None, number=number,
-                           source="iphone" if audio_path else "api")
+                           text=text if (text and not audio_path) else None,
+                           source="iphone" if audio_path else "text" if text else "api")
     except Exception as e:
         if HW:
             HW.panel.error()

@@ -287,3 +287,16 @@ def test_classifier_backend(tmp_path, monkeypatch):
     monkeypatch.setattr(classifier, "_model", None)
     fb = check_content("還付金 ATM", "classifier")       # モデルが無ければキーワード判定にフォールバック
     assert fb.backend == "keyword" and "classifier failed" in fb.error
+
+
+def test_server_text_only():
+    """音声なしで text を送ると内容判定まで行う (分類器・キーワードの動作確認用)。"""
+    from fastapi.testclient import TestClient
+    from checker import server
+    with TestClient(server.app) as client:
+        body = client.post("/check", data={"number": "03-1234-5678",
+                                           "text": "市役所です。医療費の還付金があります。本日中にATMで手続きしてください。"}).json()
+        assert body["content_score"] >= 0.5 and body["risk"] >= 5 and "ATM" in body["phrases"]
+        safe = client.post("/check", data={"number": "03-1234-5678",
+                                           "text": "さくら歯科です。明日午後3時のご予約の確認です。"}).json()
+        assert safe["risk"] <= 3
