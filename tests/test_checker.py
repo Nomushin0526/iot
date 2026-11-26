@@ -97,12 +97,30 @@ def test_button_short_press_and_hold():
     hw.use_mock_pins()
     events = []
     b = hw.NotifyButton(on_press=lambda: events.append("press"), on_hold=lambda: events.append("hold"), hold_time=0.1)
+    b.COOLDOWN = 0.2
     pin = Device.pin_factory.pin(hw.NOTIFY_BUTTON)
-    pin.drive_low(); pin.drive_high()          # 短押し (pull_up なので押す=LOW)
     import time
-    pin.drive_low(); time.sleep(0.3); pin.drive_high()  # 長押し
+    pin.drive_low(); time.sleep(0.1); pin.drive_high()   # 短押し (pull_up なので押す=LOW)
+    time.sleep(0.3)
+    pin.drive_low(); time.sleep(0.4); pin.drive_high()   # 長押し
     time.sleep(0.05)
     assert events == ["press", "hold"]
+    b.close()
+
+
+def test_button_ignores_chatter():
+    """実機で出たチャタリング: 1回の操作で何十回も反応しないこと。"""
+    import time
+    hw.use_mock_pins()
+    events = []
+    b = hw.NotifyButton(on_press=lambda: events.append("press"), on_hold=lambda: events.append("hold"))
+    pin = Device.pin_factory.pin(hw.NOTIFY_BUTTON)
+    for _ in range(40):                       # 1ms 刻みの細かい ON/OFF (ノイズ)
+        pin.drive_low(); time.sleep(0.001); pin.drive_high(); time.sleep(0.001)
+    assert events == []
+    for _ in range(5):                        # 本物の押下を素早く5回 → クールダウンで1回だけ
+        pin.drive_low(); time.sleep(0.08); pin.drive_high(); time.sleep(0.05)
+    assert events == ["press"]
     b.close()
 
 

@@ -260,23 +260,47 @@ class Panel:
 
 
 class NotifyButton:
-    """短く押す → on_press (家族へ通知)。2秒長押し → on_hold (表示リセット)。"""
+    """短く押す → on_press (家族へ通知)。2秒長押し → on_hold (表示リセット)。
+
+    実機でチャタリング (接点の跳ね・接触不良で1回の操作が何十回にも数えられる) が出たため、
+      - 50ms 未満の押下はノイズとして無視
+      - 一度反応したら 1 秒間は次の操作を受け付けない
+    """
+
+    MIN_PRESS = 0.05   # これより短い押下はノイズ
+    COOLDOWN = 1.0     # 反応した後に無視する時間
 
     def __init__(self, on_press, on_hold, hold_time: float = 2.0):
         self._held = False
-        self.button = Button(NOTIFY_BUTTON, pull_up=True, hold_time=hold_time)
+        self._pressed_at = 0.0
+        self._last_action = -1e9
+        self.button = Button(NOTIFY_BUTTON, pull_up=True, hold_time=hold_time, bounce_time=0.02)
+        self.button.when_pressed = self._when_pressed
         self.button.when_held = self._when_held
         self.button.when_released = self._when_released
         self._on_press, self._on_hold = on_press, on_hold
 
+    def _when_pressed(self):
+        self._pressed_at = time.monotonic()
+
+    def _accept(self) -> bool:
+        now = time.monotonic()
+        if now - self._last_action < self.COOLDOWN:
+            return False
+        self._last_action = now
+        return True
+
     def _when_held(self):
         self._held = True
-        self._on_hold()
+        if self._accept():
+            self._on_hold()
 
     def _when_released(self):
-        if not self._held:
+        held, self._held = self._held, False
+        if held or time.monotonic() - self._pressed_at < self.MIN_PRESS:
+            return
+        if self._accept():
             self._on_press()
-        self._held = False
 
     def close(self):
         self.button.close()
