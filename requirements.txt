@@ -8,3 +8,5 @@ av<18   # av 19 で faster-whisper 1.2.1 が使う引数 metadata_errors が廃�
 # 内容判定に LLM を使う場合 (Ollama も openai パッケージで通信する)
 openai
 anthropic
+# 学習した軽量分類器 (scam_voicemail/scripts/05_train_classifier.py) を使う場合
+scikit-learn

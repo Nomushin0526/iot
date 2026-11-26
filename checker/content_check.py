@@ -1,8 +1,9 @@
 """文字起こしテキストから詐欺らしさ (0〜1) と根拠の語句を出す。
 
 バックエンド (CONTENT_BACKEND):
-  auto      … ANTHROPIC_API_KEY → OPENAI_API_KEY → 起動中のOllama → keyword の順で使えるもの
-  anthropic / openai / ollama / keyword
+  auto       … ANTHROPIC_API_KEY → OPENAI_API_KEY → 学習済み分類器 (models/scam_clf.joblib)
+               → 起動中のOllama → keyword の順で使えるもの
+  anthropic / openai / classifier / ollama / keyword
 外部に送るのは伏せ字処理 (mask_pii) 済みのテキストだけ。LLMが失敗したら keyword にフォールバックする。
 """
 import json
@@ -193,6 +194,9 @@ def pick_backend() -> str:
         return "anthropic"
     if os.environ.get("OPENAI_API_KEY"):
         return "openai"
+    from . import classifier
+    if classifier.available():  # 学習済みモデルがあれば Ollama より先に使う (Pi で数ミリ秒、Ollama は数十秒)
+        return "classifier"
     if ollama_models():
         return "ollama"
     return "keyword"
@@ -202,6 +206,18 @@ def check_content(text: str, backend: str | None = None) -> ContentResult:
     backend = backend or pick_backend()
     if backend == "keyword" or not text.strip():
         return keyword_score(text)
+    if backend == "classifier":  # Pi の中で完結するので伏せ字は不要
+        try:
+            from . import classifier
+            score, top = classifier.predict(text)
+            kw = keyword_score(text)  # 画面のハイライト用の語句はキーワード判定から借りる
+            reasons = (["学習モデルが反応した文字列: " + "・".join(f"「{t}」" for t in top)] if top else []) + kw.reasons
+            return ContentResult(round(score, 3), kw.phrases, reasons[:5], "classifier")
+        except Exception as e:
+            fallback = keyword_score(text)
+            fallback.error = f"classifier failed: {type(e).__name__}: {str(e)[:150]}"
+            print(f"[content] {fallback.error} -> keyword fallback")
+            return fallback
     masked = mask_pii(text)
     try:
         if backend == "anthropic":

@@ -78,3 +78,4 @@ LOG_CSV = Path(env("LOG_CSV", str(DATA / "check_log.csv")))
 RESULTS_JSONL = Path(env("RESULTS_JSONL", str(DATA / "results.jsonl")))
 UPLOAD_DIR = Path(env("UPLOAD_DIR", str(DATA / "uploads")))
 KEEP_AUDIO = env_bool("KEEP_AUDIO", False)  # False なら判定後に音声を削除
+CLASSIFIER_MODEL = Path(env("CLASSIFIER_MODEL", str(ROOT / "models" / "scam_clf.joblib")))  # 05_train_classifier.py の出力

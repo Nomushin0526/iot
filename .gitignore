@@ -13,3 +13,5 @@ data/results.jsonl
 data/uploads/
 data/eval_set.csv
 data/eval_audio/
+# 学習済みモデル (Pi 上で 05_train_classifier.py を実行して作る。scikit-learn の版に依存するため入れない)
+models/

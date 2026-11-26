@@ -260,3 +260,30 @@ def test_find_busy_pins_reports_pin_in_use():
     assert any(b.startswith("GPIO8 ") and "SPI" in b for b in busy)
     assert len(busy) == 1
     d.close()
+
+
+def test_classifier_backend(tmp_path, monkeypatch):
+    """学習済み分類器バックエンド: 小さなデータで学習したモデルを読み込んで判定できること。"""
+    import joblib
+    from sklearn.feature_extraction.text import TfidfVectorizer
+    from sklearn.linear_model import LogisticRegression
+    from sklearn.pipeline import Pipeline
+    from checker import classifier
+    from checker.content_check import check_content
+    texts = ["還付金があります ATMで手続きを", "未納料金 2時間後に停止 1番を押して", "口座が犯罪に悪用 至急連絡",
+             "明日のご予約の確認です", "お荷物の不在連絡です 再配達は", "週末そっちに行くね また電話するね"]
+    pipe = Pipeline([("tfidf", TfidfVectorizer(analyzer="char_wb", ngram_range=(1, 3))),
+                     ("clf", LogisticRegression())]).fit(texts, [1, 1, 1, 0, 0, 0])
+    path = tmp_path / "m.joblib"
+    joblib.dump({"pipeline": pipe, "trained_at": "test", "n_train": 6}, path)
+    monkeypatch.setattr(config, "CLASSIFIER_MODEL", path)
+    monkeypatch.setattr(classifier, "_model", None)
+    scam = check_content("市役所です 還付金があるのでATMへ", "classifier")
+    safe = check_content("歯科です 明日のご予約の確認です", "classifier")
+    assert scam.backend == "classifier" and scam.score > safe.score
+    assert "ATM" in scam.phrases                       # ハイライト用の語句はキーワード判定から
+    assert any("学習モデル" in r for r in scam.reasons)
+    monkeypatch.setattr(config, "CLASSIFIER_MODEL", tmp_path / "missing.joblib")
+    monkeypatch.setattr(classifier, "_model", None)
+    fb = check_content("還付金 ATM", "classifier")       # モデルが無ければキーワード判定にフォールバック
+    assert fb.backend == "keyword" and "classifier failed" in fb.error
