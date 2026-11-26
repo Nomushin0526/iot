@@ -39,8 +39,8 @@ BAR_LEVELS = len(BAR_ORDER_Q)
 COLORS = {
     "green": (0, 1, 0),
     # 黄は赤と緑を交互に点けて作る (SequentialRGB)。値は点灯時間の割合。
-    # 緑は赤より暗く光るので緑を長めにしている。RGB_YELLOW="0.3,1,0" のように環境変数で調整できる
-    "yellow": tuple(float(x) for x in os.environ.get("RGB_YELLOW", "0.3,1,0").split(",")),
+    # 実機で 0.3:1 は緑に見えたため赤を長めにしている (diag_display.py で確認)。RGB_YELLOW="1,0.25,0" のように環境変数で調整できる
+    "yellow": tuple(float(x) for x in os.environ.get("RGB_YELLOW", "1,0.25,0").split(",")),
     "red": (1, 0, 0),
     "blue": (0, 0, 1),
     "off": (0, 0, 0),

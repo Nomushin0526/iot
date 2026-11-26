@@ -82,7 +82,7 @@
   - 光らせる順（1段目→7段目）：Q7, Q6, Q5, Q4, Q3, Q2, Q1
 - RGB LED：カソードコモン、共通ピンに220Ω 1本（配線図の59列=R、60列=共通→220Ω→−レール、61列=G、62列=B）。
   - **この配線では2色を同時に点けると赤しか光らない**（赤の点灯電圧が低く電流が集中するため）。実機で確認済み。
-  - そのため本体は `gpiozero.RGBLED` ではなく `checker/hardware.py` の `SequentialRGB` を使い、黄などの混色は赤と緑を 100Hz で交互に点けて作る（同時に点く色は常に1つ）。黄の割合は環境変数 `RGB_YELLOW`（既定 `0.3,1,0`）で調整。
+  - そのため本体は `gpiozero.RGBLED` ではなく `checker/hardware.py` の `SequentialRGB` を使い、黄などの混色は赤と緑を 100Hz で交互に点けて作る（同時に点く色は常に1つ）。黄の割合は環境変数 `RGB_YELLOW`（既定 `1,0.25,0`。実機で 0.3:1 は緑に見えた）で調整。LEDのレンズが透明だと赤と緑が別々の点に見えるので、白いテープ等で拡散させると黄に見えやすい。
   - `hw_test.py rgb` は RGBLED のままなので、黄は赤に見える（配線の問題ではない）。
 
 ### 既存コード
@@ -97,6 +97,8 @@
 - **解決済み**：バーグラフの7個目だけが光る問題は、**SPI が有効で GPIO8 を `spi0 CS0` が使っていた**のが原因。
   `sudo raspi-config nonint do_spi 1` で SPI を無効にして再起動 → `hw_test.py bar` で伸び縮みを確認。
   確認方法: `gpioinfo | grep -E '"GPIO(7|8)"'` で `consumer="spi0 ..."` が出ないこと。
+- 7セグ: 595 A の Q1〜Q7 → c・d・e・g・f・a・b を `diag_display.py` で1本ずつ確認済み（配線図どおり）。
+- **未解決**: バーグラフの2段目（595 B の Q6=45列 → 紫線 → 49列）だけ光らない。他の段は正常。
 - 実機: Raspberry Pi 5 (8GB, Python 3.13, aarch64)、Ollama 0.40.16 インストール済み。
   venv `~/iot-venv`（--system-site-packages）で `run_server.py` が `[hw] ready (GPIO)` で起動するところまで確認。
 
