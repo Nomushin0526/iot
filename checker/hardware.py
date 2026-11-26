@@ -262,27 +262,23 @@ class Panel:
 class NotifyButton:
     """短く押す → on_press (家族へ通知)。2秒長押し → on_hold (表示リセット)。
 
-    実機でチャタリング (接点の跳ね・接触不良で1回の操作が何十回にも数えられる) が出たため、
-      - 50ms 未満の押下はノイズとして無視
-      - 一度反応したら 1 秒間は次の操作を受け付けない
+    実機でチャタリング (押す・離す瞬間に接点が細かく跳ねる) が強く、信号の変化 (割り込み) を
+    そのまま数えると押下時間が正しく測れず、本物の操作まで捨ててしまった。そこで 10ms ごとに
+    状態を読み、同じ状態が STABLE 秒続いたときだけ「押された / 離された」と確定する。
     """
 
-    MIN_PRESS = 0.05   # これより短い押下はノイズ
-    COOLDOWN = 1.0     # 反応した後に無視する時間
+    POLL = 0.01       # 状態を読む間隔
+    STABLE = 0.05     # この時間同じ状態が続いたら確定
+    COOLDOWN = 1.0    # 反応した後に無視する時間
 
     def __init__(self, on_press, on_hold, hold_time: float = 2.0):
-        self._held = False
-        self._pressed_at = 0.0
-        self._last_action = -1e9
-        # bounce_time (lgpio のハードウェア側の跳ね返り除去) は Pi 5 で反応が消えることがあるので使わず、ソフト側で判定する
-        self.button = Button(NOTIFY_BUTTON, pull_up=True, hold_time=hold_time)
-        self.button.when_pressed = self._when_pressed
-        self.button.when_held = self._when_held
-        self.button.when_released = self._when_released
+        self.button = Button(NOTIFY_BUTTON, pull_up=True)
         self._on_press, self._on_hold = on_press, on_hold
-
-    def _when_pressed(self):
-        self._pressed_at = time.monotonic()
+        self.hold_time = hold_time
+        self._last_action = -1e9
+        self._stop = threading.Event()
+        self._thread = threading.Thread(target=self._loop, daemon=True, name="button")
+        self._thread.start()
 
     def _accept(self) -> bool:
         now = time.monotonic()
@@ -291,19 +287,37 @@ class NotifyButton:
         self._last_action = now
         return True
 
-    def _when_held(self):
-        self._held = True
+    def _fire(self, handler) -> None:
         if self._accept():
-            self._on_hold()
+            try:
+                handler()
+            except Exception as e:  # 処理の失敗で監視を止めない
+                print(f"[button] handler error: {e}")
 
-    def _when_released(self):
-        held, self._held = self._held, False
-        if held or time.monotonic() - self._pressed_at < self.MIN_PRESS:
-            return
-        if self._accept():
-            self._on_press()
+    def _loop(self) -> None:
+        stable = False            # 確定した状態 (True = 押されている)
+        candidate, since = False, time.monotonic()
+        pressed_at, held_fired = 0.0, False
+        while not self._stop.is_set():
+            now = time.monotonic()
+            raw = self.button.is_pressed
+            if raw != candidate:              # 状態が変わったら計り直し (跳ねている間は確定しない)
+                candidate, since = raw, now
+            elif raw != stable and now - since >= self.STABLE:
+                stable = raw                  # 確定
+                if stable:
+                    pressed_at, held_fired = now, False
+                elif not held_fired:          # 離した: 長押しでなければ短押し
+                    self._fire(self._on_press)
+            if stable and not held_fired and now - pressed_at >= self.hold_time:
+                held_fired = True             # 押し続けている: 長押し
+                self._fire(self._on_hold)
+            self._stop.wait(self.POLL)
 
     def close(self):
+        self._stop.set()
+        if self._thread.is_alive():
+            self._thread.join(timeout=1)
         self.button.close()
 
 

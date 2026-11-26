@@ -94,33 +94,48 @@ def test_sequential_rgb_never_lights_two_colors_at_once():
 
 
 def test_button_short_press_and_hold():
+    import time
     hw.use_mock_pins()
     events = []
-    b = hw.NotifyButton(on_press=lambda: events.append("press"), on_hold=lambda: events.append("hold"), hold_time=0.1)
+    b = hw.NotifyButton(on_press=lambda: events.append("press"), on_hold=lambda: events.append("hold"), hold_time=0.4)
     b.COOLDOWN = 0.2
     pin = Device.pin_factory.pin(hw.NOTIFY_BUTTON)
-    import time
-    pin.drive_low(); time.sleep(0.1); pin.drive_high()   # 短押し (pull_up なので押す=LOW)
+    pin.drive_low(); time.sleep(0.15); pin.drive_high()   # 短押し (pull_up なので押す=LOW)
     time.sleep(0.3)
-    pin.drive_low(); time.sleep(0.4); pin.drive_high()   # 長押し
-    time.sleep(0.05)
+    pin.drive_low(); time.sleep(0.7); pin.drive_high()    # 長押し (hold_time より長い)
+    time.sleep(0.15)
     assert events == ["press", "hold"]
     b.close()
 
 
-def test_button_ignores_chatter():
-    """実機で出たチャタリング: 1回の操作で何十回も反応しないこと。"""
+def _bouncy(pin, hold: float):
+    """実機のチャタリングを再現: 押す瞬間と離す瞬間に 1ms 刻みで10回跳ねる。"""
+    import time
+    for _ in range(10):
+        pin.drive_low(); time.sleep(0.001); pin.drive_high(); time.sleep(0.001)
+    pin.drive_low(); time.sleep(hold)
+    for _ in range(10):
+        pin.drive_high(); time.sleep(0.001); pin.drive_low(); time.sleep(0.001)
+    pin.drive_high()
+
+
+def test_button_with_chatter():
+    """跳ねながら押しても1回の操作は1回として数え、本物の押下は捨てない。"""
     import time
     hw.use_mock_pins()
     events = []
-    b = hw.NotifyButton(on_press=lambda: events.append("press"), on_hold=lambda: events.append("hold"))
+    b = hw.NotifyButton(on_press=lambda: events.append("press"), on_hold=lambda: events.append("hold"), hold_time=0.6)
+    b.COOLDOWN = 0.3
     pin = Device.pin_factory.pin(hw.NOTIFY_BUTTON)
-    for _ in range(40):                       # 1ms 刻みの細かい ON/OFF (ノイズ)
+    for _ in range(40):                       # 押していないのに入るノイズ (1ms)
         pin.drive_low(); time.sleep(0.001); pin.drive_high(); time.sleep(0.001)
+    time.sleep(0.1)
     assert events == []
-    for _ in range(5):                        # 本物の押下を素早く5回 → クールダウンで1回だけ
-        pin.drive_low(); time.sleep(0.08); pin.drive_high(); time.sleep(0.05)
-    assert events == ["press"]
+    _bouncy(pin, 0.15); time.sleep(0.4)       # 跳ねる短押し → 1回
+    _bouncy(pin, 0.15); time.sleep(0.4)       # もう1回 (クールダウン後) → 1回
+    assert events == ["press", "press"]
+    _bouncy(pin, 0.9); time.sleep(0.2)        # 跳ねる長押し → hold 1回
+    assert events == ["press", "press", "hold"]
     b.close()
 
 
