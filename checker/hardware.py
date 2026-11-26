@@ -274,7 +274,8 @@ class NotifyButton:
         self._held = False
         self._pressed_at = 0.0
         self._last_action = -1e9
-        self.button = Button(NOTIFY_BUTTON, pull_up=True, hold_time=hold_time, bounce_time=0.02)
+        # bounce_time (lgpio のハードウェア側の跳ね返り除去) は Pi 5 で反応が消えることがあるので使わず、ソフト側で判定する
+        self.button = Button(NOTIFY_BUTTON, pull_up=True, hold_time=hold_time)
         self.button.when_pressed = self._when_pressed
         self.button.when_held = self._when_held
         self.button.when_released = self._when_released
@@ -282,6 +283,7 @@ class NotifyButton:
 
     def _when_pressed(self):
         self._pressed_at = time.monotonic()
+        print("[button] pressed")
 
     def _accept(self) -> bool:
         now = time.monotonic()

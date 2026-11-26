@@ -55,7 +55,10 @@ def run_check(audio_path: str | None = None, number: str = "", source: str = "ap
             ok, info = notify.send_slack(notify.build_message(result))
             result["notified"] = ok
             result["notify_info"] = info
+            print(f"[notify] auto (危険度 {risk}) -> {'送信成功' if ok else '送信失敗'} ({info})")
         result["total_sec"] = round(time.time() - t0, 1)
+        print(f"[check] {source}: 危険度 {risk} ({result['level']}) 番号={nr.kind} "
+              f"内容={result.get('content_score', '-')} ({result.get('content_backend', '番号のみ')}) {result['total_sec']}s")
 
         if save:
             logbook.append(result)
