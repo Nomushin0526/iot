@@ -283,7 +283,6 @@ class NotifyButton:
 
     def _when_pressed(self):
         self._pressed_at = time.monotonic()
-        print("[button] pressed")
 
     def _accept(self) -> bool:
         now = time.monotonic()
