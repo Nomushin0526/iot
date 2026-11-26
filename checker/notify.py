@@ -38,3 +38,18 @@ def send_slack(text: str) -> tuple[bool, str]:
             return r.status == 200, f"HTTP {r.status}"
     except Exception as e:
         return False, f"{type(e).__name__}: {e}"
+
+
+if __name__ == "__main__":
+    # テスト送信: リポジトリ直下で `python -m checker.notify`
+    # .env の SLACK_WEBHOOK_URL に、危険度8の例と同じ形のメッセージを1通送る
+    sample = {
+        "risk": 8, "level": "red", "number": "+8612345678",
+        "number_reasons": ["国際電話 (国番号 +861…)"],
+        "content_reasons": ["還付金・払い戻し", "ATMへの誘導"],
+        "phrases": ["還付金", "ATM", "本日中"],
+    }
+    text = "【テスト送信】詐欺チェッカーからの通知テストです\n" + build_message(sample)
+    print(text, "\n")
+    ok, info = send_slack(text)
+    print("送信成功" if ok else "送信失敗", f"({info})")

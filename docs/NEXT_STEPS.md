@@ -153,7 +153,15 @@ cd ~/iot && ~/iot-venv/bin/python -m checker.evaluate --log data/check_log.csv
    SLACK_WEBHOOK_URL=https://hooks.slack.com/services/...
    ```
 
-6. サーバーを起動し直し、判定したあとに通知ボタンを短く押す → Slack に届けば完成
+6. テスト送信する（サーバーを起動しなくてよい）
+
+   ```bash
+   cd ~/iot && ~/iot-venv/bin/python -m checker.notify
+   ```
+
+   最後に `送信成功 (HTTP 200)` と出て、Slack にテストのメッセージが届けば完成
+
+7. 本番の動作: サーバーを起動し直し、判定したあとに通知ボタンを短く押すと、その結果が Slack に届く
 
 危険度 7 以上で自動通知される（`.env` の `NOTIFY_THRESHOLD` で変更可）。
 
