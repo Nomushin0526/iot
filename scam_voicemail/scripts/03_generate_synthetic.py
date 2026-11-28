@@ -306,6 +306,7 @@ def main():
     ap.add_argument("--sleep", type=float, default=1.0, help="API呼び出し間の待機秒")
     ap.add_argument("--max-batches", type=int, default=0, help="0=無制限 (お試し実行用)")
     ap.add_argument("--categories", default="", help="カンマ区切りで生成対象カテゴリを限定 (例: refund_scam,relative_scam)")
+    ap.add_argument("--languages", default="", help="カンマ区切りで生成対象の言語を限定 (例: en,zh)")
     ap.add_argument("--seed", type=int, default=42)
     args = ap.parse_args()
 
@@ -325,6 +326,9 @@ def main():
     if args.categories:
         only = set(args.categories.split(","))
         quotas = {k: v for k, v in quotas.items() if k[0] in only}
+    if args.languages:
+        langs = set(args.languages.split(","))
+        quotas = {k: v for k, v in quotas.items() if k[1] in langs}
 
     done = read_jsonl(OUT)
     have = Counter((r["category"], r["language"]) for r in done)
