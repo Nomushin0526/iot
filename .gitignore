@@ -2,11 +2,8 @@ __pycache__/
 *.pyc
 .venv/
 .env
-# 生成物 (03/04 を実行すると再生成される)
-scam_voicemail/data/processed/*.jsonl
-scam_voicemail/data/dataset.jsonl
-scam_voicemail/data/train.jsonl
-scam_voicemail/data/val.jsonl
+# 学習データ (Gemma で生成したもの) はリポジトリに入れる。ノイズ付与前の中間ファイルだけ除外
+scam_voicemail/data/processed/all_clean.jsonl
 # 詐欺チェッカーの実行時データ (文字起こし・音声を含むので入れない)
 data/check_log.csv
 data/results.jsonl
